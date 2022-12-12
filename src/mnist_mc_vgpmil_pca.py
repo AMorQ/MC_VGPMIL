@@ -13,7 +13,7 @@ import numpy as np
 #import matplotlib.pyplot as plt
 #from sklearn.metrics import f1_score, log_loss
 from helperfunctions import RBF
-from mcvgpmil2_va import mc_vgpmil
+from mc_vgpmil import mc_vgpmil
 from bags_preprocesing import create_bags_multiclass#, find_bag_elements
 #from numpy import savetxt
 
