@@ -14,7 +14,7 @@ import numpy as np
 #from sklearn.metrics import f1_score, log_loss
 from helperfunctions import RBF
 from mc_vgpmil import mc_vgpmil
-from bags_preprocesing import create_bags_multiclass#, find_bag_elements
+from mnist_data_preprocesing import create_bags_multiclass#, find_bag_elements
 #from numpy import savetxt
 
 # For reproducibility 
