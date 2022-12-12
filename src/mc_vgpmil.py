@@ -254,19 +254,7 @@ class mc_vgpmil(object):
 
         if self.verbose:
             print("Minutes needed: ", (stop - start) / 60.)
-
-
-        print('SOME PRELIMINARY METRICS')
-        #efmin = np.argmax([self.F_mean[n, :] for n in range(self.Ntot)])
-        #MultiBag = np.zeros((self.Ntot, 1))
-        #for n in range(self.Ntot):
-        #    MultiBag[self.MultiBagLabel[n, 1] == 1] = 0
-        #    MultiBag[self.MultiBagLabel[n, 2] == 1] = 1
-        #    MultiBag[self.MultiBagLabel[n, 3] == 1] = 2
-        #n_0 = len(MultiBag[MultiBag == 0])
-        #n_1 = len(MultiBag[MultiBag[n] == 1])
-        #n_2 = len(MultiBag[MultiBag[n] == 2])
-
+            
     def predict(self, Xtest):
         """
         #Predict instances and bag labels
