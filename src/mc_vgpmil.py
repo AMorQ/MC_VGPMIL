@@ -1,4 +1,4 @@
-#-*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 Created on Mon Jun 20 16:16:29 2022
 @author: Luz García
@@ -34,7 +34,7 @@ class mc_vgpmil(object):
         self.normalize = normalize
         self.verbose = verbose
         self.lH = np.log(1e12)
-        self.lH1 = np.log(1e12 + 1)
+        #self.lH1 = np.log(1e12 + 1)
 
     def initialize(self, Xtrain, Bags, MultiBagLabel, Z=None, pi=None, mask=None):
         """
@@ -49,7 +49,7 @@ class mc_vgpmil(object):
 
         self.Ntot = len(Bags)  # number of instances
 
-        self.Nbag = 9  # number of instances in a bag, needs to be generalized
+        #self.Nbag = 9  # number of instances in a bag, needs to be generalized
 
         self.Nclass = len(np.unique(MultiBagLabel))  # number of classes
         self.C = len(np.unique(MultiBagLabel)) - 1  # number of pathological classes
@@ -83,12 +83,16 @@ class mc_vgpmil(object):
         self.Kxz = self.kernel.compute(Xtrain, self.Z)
         #self.Kxx = self.kernel.compute(Xtrain, Xtrain)
         self.KxzKzzi = np.dot(self.Kxz, self.Kzzi)
-        self.f_var = 1 - np.einsum("ji,ji->i", self.Kzx, self.KzziKzx)
+        self.f_variance = np.einsum("ij,jk", self.Kxz, self.KzziKzx) #producto matricial normal
+        self.f_var = (1 - np.einsum("ii->i", self.f_variance))*1.5#cojo la diagonal
+        # ????????????????????????????
+        #self.f_var = 1 - np.einsum("ii->i", self.f_variance)
+        #es normal que me de una varianza tan pequeña? me da próxima a cero
         self.Ntot_b = [np.sum(self.Bags == b) for b in np.unique(self.Bags)]
 
         # Initializing parameters for q(u)
         self.m = np.random.randn(self.num_ind, self.C)  # (M x C)
-        self.S = np.identity(self.num_ind) + np.random.randn(self.C, self.num_ind, self.num_ind) * 0.01  # (C x M x M)
+        self.S = np.identity(self.num_ind) + np.random.randn(self.C, self.num_ind, self.num_ind) * 0.1  # (C x M x M)
 
         # Initializing parameters for q(y)
         if pi is not None:
@@ -96,7 +100,8 @@ class mc_vgpmil(object):
             self.mask = mask.copy()
             self.pi = pi.copy()
         else:
-            self.pi = np.random.uniform(0, 0.1, size=self.Ntot)
+            self.pi = np.random.uniform(0, 0.5, size=self.Ntot) #inicializo todas
+            #las instancias como sanas
             self.mask = np.ones(self.Ntot) == 1
 
         # Initializing inference parameters \xi_b^c \gamma \alpha_b
@@ -111,8 +116,12 @@ class mc_vgpmil(object):
         ## Calculate E_c ##
         ###################
         # second term
-        second = np.sum([self.Lambda_n[n] * self.KzziKzx[:, [n]].dot(self.KxzKzzi[[n], :]) for n in range(self.Ntot)],
-                        axis=0)
+        #second_2 = np.sum([self.Lambda_n[n] * (self.KzziKzx[:, [n]].dot(self.KxzKzzi[[n], :])) for n in range(self.Ntot)],
+                        #axis=0)
+        #print(second_2)
+        second = np.sum(
+            [self.Lambda_n[n] * self.KzziKzx[:, [n]].dot(self.KxzKzzi[[n], :]) for n in range(self.Ntot)],
+            axis=0)
         # third term
         third = [np.max(self.pi[self.Bags == b]) for b in np.unique(self.Bags)]
         # fourth term
@@ -120,53 +129,87 @@ class mc_vgpmil(object):
             sth_b = []
             for b in np.unique(self.Bags).astype(int):
                 mask = np.where(self.Bags == b)  # instances belonging to the bag
-                sth = np.sum(
-                    [self.KzziKzx[:, [n]].dot(self.KxzKzzi[[m], :]) for n in mask[0] for m in mask[0] if m != n],
-                    axis=0)
-                sth2 = np.sum([self.KzziKzx[:, [n]].dot(self.KxzKzzi[[n], :]) for n in mask[0]])
+                #tengo mask como una tuple, mask[0] es lo que yo quiero
+                sth = np.sum([self.KzziKzx[:, [n]].dot(self.KxzKzzi[[m], :]) for n in mask[0] for m in mask[0] if m != n],axis=0)
+                sth2 = np.sum([self.KzziKzx[:, [n]].dot(self.KxzKzzi[[n], :]) for n in mask[0]], axis=0)
                 sth_b.append([(self.Lambda_k[b, c] / (self.Ntot_b[b] ** 2)) * third[b] * (sth + sth2)])
             fourth = np.sum(sth_b, axis=0)
 
-            E_c = -0.5 * (self.Kzzi - 2 * second - 2 * fourth)
+            E_c = -0.5 * (self.Kzzi + 2 * second - 2 * fourth)
+            #estos signos pueden estar mal, lo corregí pero
+            #no está pasado al latex
             self.S[c, :, :] = -2 * E_c
+            #tiene pinta de que S es muy grande
+            #la única forma de que se haga más pequeño es que second and fourth compitan con Kzzi, que no puede cambiar
+            #pero es que no puedo hacerlo más pequeño
 
         ###################
         ## Calculate D_c ##
         ###################
+        #term_1_what = np.sum(self.pi * self.KxzKzzi, axis=1)
+        #term_1 = term_1_what
         term_1 = np.sum([self.pi[n] * (self.KxzKzzi[[n], :]) for n in range(self.Ntot)], axis=0)
-        term_0 = np.sum([self.m[:, [j]].T for j in range(self.C)], axis=0)
+        #term_0 = np.sum([self.m[:, [j]].T for j in range(self.C)], axis=1) = 2x15
+        term_0 = np.sum([self.m[:, [j]].T for j in range(self.C)], axis=0) #= 1x15
+        #la media tiene valores muy altos (negativos o positivos)
+        #para la primera clase y valores muy bajos para la segunda
+
         term_2 = np.sum(
             [self.Lambda_n[n] * term_0.dot(self.KzziKzx[:, [n]].dot(self.KxzKzzi[[n], :])) for n in range(self.Ntot)],
             axis=0)
+        #term_2_2 = np.sum(
+            #[self.Lambda_n[n] * term_0.dot(self.KzziKzx[:, [n]] * (self.KxzKzzi[[n], :])) for n in range(self.Ntot)],
+            #axis=1)
         for c in range(self.C):
             term = []
             for b in np.unique(self.Bags).astype(int):
                 mask = np.where(self.Bags == b)  # instances belonging to the bag
-                cst = (self.MultiBagLabel[mask[0][0], c + 1] - 0.5 - 0.5 * self.alpha[b]) * self.Lambda_k[b, c] / \
-                      self.Ntot_b[b]
-                term_t = (np.max(self.pi[self.Bags == b]) * cst) * np.sum([(self.KxzKzzi[[n], :]) for n in mask[0]],
-                                                                          axis=0)
+                #cst = (self.MultiBagLabel[mask[0][0], c + 1] - 0.5 - 0.5 * self.alpha[b]) * (self.Lambda_k[b, c]) / \
+                      #(self.Ntot_b[b])
+                # ?????? si le pongo np.where a mask no me hace falta que sea mask[0][0]
+                cst = (self.MultiBagLabel[mask[0], c + 1] - 0.5 - 0.5 * self.alpha[b]) * (self.Lambda_k[b, c]) / (self.Ntot_b[b])
+                #qué debería pasar con cts, en principio, diría que será más alta para patológicas
+                #pero la diferencia es infinitesimal
+
+                #term_t_1 = [self.KxzKzzi[[t], :] for t in mask[0]]
+                #term_t_2 = np.sum(term_t_1, axis=0)
+                #term_t_3 = np.max(self.pi[self.Bags==b])
+                #term_t_4 = term_t_3 * term_t_2
+                term_t = (np.max(self.pi[mask[0]]) * cst)[0] * np.sum([(self.KxzKzzi[[n], :]) for n in mask[0]], axis=0)
+                #se me hace chiquitito en segunda iteración por pi
                 term.append([term_t])
             term_3 = np.sum(term, axis=0)
 
+
+            #D_c = term_1 - term_2[[c], :] + term_3
             D_c = term_1 - term_2 + term_3
             D_c = D_c.squeeze(0)
 
             self.m[:, [c]] = self.S[c, :, :].dot(D_c.T)
+            #es aquí donde tengo el problema
+            #tengo que poder hacer más pequeño D_c
+            #self.m[:, [c]] = self.S[c, :, :].dot(D_c.T)
             self.F_mean = self.KxzKzzi.dot(self.m)
 
         return self.S, self.m
 
     def q_y_inference(self):
         term_f = np.sum(self.F_mean, axis=1)
+        #term_f tiene que tener valores bajos para instancias/bolsas negativas
+        #pero tengo un probelma en los signos
+        #TENGO QUE REVISAR LOS CÁLCULOS
         Emax = np.empty(len(self.pi))
         for b in np.unique(self.Bags.astype(int)):  # as performed in VGPMIL CODE
             mask = self.Bags == b
+            #mask = np.where(self.Bags == b)
             pisub = self.pi[mask]
             m1 = np.argmax(pisub)
             tmp = np.empty(len(pisub))
             tmp.fill(pisub[m1])
-            pisub[m1] = -99
+            pisub[m1] = -9999999999999
+            #lo tengo que poner mucho más pequeño, en mi caso pi alcanza valores muy
+            #pequeños
+            #no me hace falta si luego le hago un clip
             m2 = np.argmax(pisub)
             tmp[m1] = pisub[m2]
             Emax[mask] = tmp
@@ -177,28 +220,43 @@ class mc_vgpmil(object):
         for b in np.unique(self.Bags.astype(int)):
             mask = self.Bags == b
             term_whatever = np.sum(self.MultiBagLabel[mask, 1:][0] * self.F_mean[mask, :].mean(0), axis=0)
+            #term_whatever será 0 para las bolsas sanas
             # E[A_b]
+
+
+            oo = self.F_mean[mask, :].mean(0)
+            #las primeras bolsas son sanas. Primeramente, va a estar parecido
             firsty = np.sum((self.F_mean[mask, :].mean(0) - self.xi[b, :]) * 0.5, axis=0)
             erre_1 = 0
             erre_2 = np.sum(self.f_var[mask], axis=0)
+            #la suma de las varianzas de las instancias de la bolsa es super bajo
             erre = erre_1 + erre_2
 
             secondy_1 = (self.F_mean[mask, :].mean(0) - self.alpha[b]) ** 2
-            secondy_2 = 1 / (self.Ntot_b[b] ** 2) * (erre - self.xi[b, :] ** 2)
-            secondy_3 = np.log(1 + np.exp(self.xi[b, :]))
-            secondy = np.sum(self.Lambda_k[b, :] * (secondy_1 + secondy_2) + secondy_3, axis=0)
+            secondy_2 = 1 / (self.Ntot_b[b] ** 2) * (erre) - self.xi[[b], :] ** 2
+            #secondy_2 = 1 / (self.Ntot_b[b] ** 2) * (erre - self.xi[b, :] ** 2)
+            secondy_3 = np.log(1 + np.exp(self.xi[[b], :]))
+            secondy = np.sum(self.Lambda_k[[b], :] * (secondy_1 + secondy_2) + secondy_3, axis=1)
 
             EA_b = self.alpha[b] * (1 - self.C / 2) + firsty + secondy
 
-            thirty = self.MultiBagLabel[[b], 0] * (self.lH - self.lH1)
-            forty = np.sum(self.MultiBagLabel[b, 1:], axis=0) * self.lH1 * self.C
+            thirty = self.MultiBagLabel[[b], 0] * (self.lH )
+            forty = np.sum(self.MultiBagLabel[b, 1:], axis=0) * self.lH * self.C
 
             a_b = term_whatever - EA_b - thirty + forty
             a_n = term_f[mask] + term_s_c[mask] * a_b
+            #necesito que a_n, a_b sean positivos para las bolsas patológicas
+            #term_whatever tiene que tirar por encima de EA_b
+            #o term_s_c es chiquitito, si a_b no fuera tan grande y negativo, term_f podría hacer
+            #positivo a a_n
+            #TENGO QUE REVISAR LOS CÁLCULOS
             pi_b = sigmoid(a_n)
             pi = np.concatenate((pi, pi_b), axis=0)
-
+            pi = np.clip(pi, 0, 1)
+        #print(oo)
         return pi
+
+
 
     def parameter_inference(self):
         # alpha
@@ -249,7 +307,7 @@ class mc_vgpmil(object):
         """
         if init:
             start = time()
-            self.initialize(Xtrain,Bags, MultiBagLabel, Z=Z, pi=pi, mask=mask)
+            self.initialize(Xtrain, Bags, MultiBagLabel, Z=Z, pi=pi, mask=mask)
             stop = time()
             if self.verbose:
                 print("Initialized. \tMinutes needed:\t", (stop - start) / 60.)
@@ -279,12 +337,14 @@ class mc_vgpmil(object):
         # esto lo hacemos ya en preprocessing?
         if self.normalize:
             Xtest = (Xtest - self.data_mean) / self.data_std
-        print(Xtest.mean(0), Xtest.std(0))
+
+        print('Media y desviación de Xtest------->', Xtest.mean(0), Xtest.std(0))
+
         Kxz = self.kernel.compute(Xtest, self.Z)
         Ntest = np.shape(Xtest)[0]
         Kzx = self.kernel.compute(self.Z, Xtest)
         Kxx = self.kernel.compute(Xtest, Xtest)
-        print(Kxx, Kxz, self.Kxz)
+        #print(Kxx, Kxz, self.Kxz)
         mu = Kxz.dot(self.Kzzi).dot(self.m)
         #en mu tengo valores muy próximos a zero
         # self.F_mean = self.KxzKzzi.dot(self.m) pero F_mean no tiene valores tan pequeños
@@ -299,9 +359,15 @@ class mc_vgpmil(object):
 
         for b in np.unique(bags_id_test).astype(int):
             mask = bags_id_test == b
-            ef = np.exp(mu[mask].mean(0))/np.sum(np.exp(mu[mask].mean(0)), axis=0)
-            pT[b, 1:] = ef #me salen todas las probabilidades iguales para las clases pat
+            ef = (np.exp(mu[mask]).mean(0)) / np.sum(np.exp(mu[mask].mean(0)), axis=0)
+            #me dice que en ef, hay una división por zero con 10 it y 27 ptos inductores
+            pT[b, 1:] = ef #esto se me va de los axis con el toy_example
 
+            #me salen todas las probabilidades iguales para las clases pat
+            #la funcion del kernel es muy pequeña, parece que los valores de entrada van bien
+            #el problema aqui es que mu es muy grande:
+            #dos cosas, tendremos que volver a normalizar para que sean coherente la etiqueta sana y multiclase
+            #segundacosa, estaremos inicializando de la forma mejor?
             pT[b, 0] = np.prod(1 - sigmoid(np.sum(mu[mask], axis=1)))
 
         return sigmoid(argu), pT
