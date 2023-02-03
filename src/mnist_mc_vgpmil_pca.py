@@ -15,7 +15,7 @@ from sklearn.metrics import f1_score, log_loss
 from helperfunctions import RBF
 from mc_vgpmil import mc_vgpmil
 from mnist_data_preprocesing import create_bags_multiclass, plot_bag
-from toy_example import toy_example
+from toy_example import toy_example, very_toy_example
 from numpy import savetxt
 import mlflow
 
@@ -55,8 +55,10 @@ np.random.seed(12)
 #bags_class_train, bags_class_test, instances_class_train, \
 #instances_class_test = create_bags_multiclass('mnist')
 
-x_train, y_train, bag_label = toy_example(9)
-x_test, y_test, bag_label_test = toy_example(6)
+#x_train, y_train, bag_label = toy_example(9)
+#x_test, y_test, bag_label_test = toy_example(6)
+
+x_train, y_train, bag_label = very_toy_example()
 """
 With function plot_bag you can check that bags are created correctly. Example:
     bags_class_train shows me that instance 8000 (print bags_class_train[8000]) belongs to bag class 3, and the id
@@ -76,6 +78,8 @@ max_iter = 10
 #                         max_iter=int(max_iter),
 #                         normalize=True,
 #                         verbose=True)
+
+
 
 vgpmil_model = mc_vgpmil(kernel=kernel,
                          num_inducing=int(num_inducing),
