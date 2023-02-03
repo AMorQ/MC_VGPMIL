@@ -8,13 +8,23 @@ def toy_example(N):
    third*[2])
    bag_label = bag_indexes
 
-   for b in range(3):
-      print(x_train[(bag_indexes==b)])
-      print(y_train[bag_indexes==b])
-      print(bag_indexes[bag_indexes==b])
+   #for b in range(3):
+   #   print(x_train[(bag_indexes==b)])
+   #   print(y_train[bag_indexes==b])
+   #   print(bag_indexes[bag_indexes==b])
 
 
    x_train = x_train.reshape(-1, 1)
    y_train = y_train.reshape(-1, 1)
 
+   return x_train, y_train, bag_label
+
+def very_toy_example():
+   #we for a database of just two bags
+   x_train = np.asarray([0, 0.33, 0.66, 1])
+   y_train = np.asarray([0, 0, 0, 1])
+   bag_indexes = [0, 0, 1, 1]
+   bag_label = np.asarray(bag_indexes)
+   x_train = x_train.reshape(-1, 1)
+   y_train = y_train.reshape(-1, 1)
    return x_train, y_train, bag_label
