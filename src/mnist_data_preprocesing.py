@@ -3,6 +3,8 @@
 Created on Thu Jun 30 11:04:39 2022
 
 @author: luzgm
+
+
 """
 import keras
 import gpflow
@@ -47,7 +49,7 @@ def create_bags_multiclass(database):
     train_y = train_y_orig.reshape(-1,1)
     test_y = test_y_orig.reshape(-1,1)
     
-    train_x = train_x/255 #lo negro lo pone a rgb =(1,1,1) y lo blanco a rgb = (0,0,0)
+    train_x = train_x/255 
     test_x = test_x/255
 
     scaler = StandardScaler()
